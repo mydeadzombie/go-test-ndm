@@ -47,6 +47,13 @@ test: build
 	(curl -s "$$U/role?timeout=5" > .out1) & w=$$!; sleep 0.2; \
 	curl -s -o /dev/null -XPUT "$$U/role?v=ceo"; wait $$w; \
 	check "$$(cat .out1)" ceo "waiter received PUT"; rm -f .out1; \
+	echo "→ waiter wakes before timeout"; \
+	t0=$$(date +%s); \
+	(curl -s -w ' [%{http_code}]' "$$U/early?timeout=5" > .out2) & w=$$!; sleep 0.5; \
+	curl -s -o /dev/null -XPUT "$$U/early?v=hi"; wait $$w; t1=$$(date +%s); \
+	check "$$(cat .out2)" "hi [200]" "waiter got message"; \
+	[ $$((t1-t0)) -lt 5 ] && echo "  ok   returned in $$((t1-t0))s (<5s)" || { echo "  FAIL waited full timeout"; exit 1; }; \
+	rm -f .out2; \
 	echo "→ two waiters FIFO order"; \
 	(curl -s "$$U/q?timeout=5" > .a) & a=$$!; sleep 0.15; \
 	(curl -s "$$U/q?timeout=5" > .b) & b=$$!; sleep 0.15; \
